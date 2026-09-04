@@ -1,0 +1,20 @@
+{
+  "name": "aikiller",
+  "owner": {
+    "name": "bokuyong"
+  },
+  "metadata": {
+    "description": "한국어 AI 문체 검사 + 다듬기 스킬. 탐지와 교정이 하나의 패턴 레지스트리를 공유합니다.",
+    "version": "0.1.0",
+    "pluginRoot": "."
+  },
+  "plugins": [
+    {
+      "name": "aikiller",
+      "source": "./",
+      "description": "한국어 글의 AI 문체를 점수·근거·문장별 히트맵으로 검사하고, 의미를 바꾸지 않는 규칙으로 다듬는다.",
+      "version": "0.1.0",
+      "keywords": ["korean", "ai-detection", "korean-nlp", "AI탐지", "번역투"]
+    }
+  ]
+}

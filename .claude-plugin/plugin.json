@@ -1,0 +1,21 @@
+{
+  "name": "aikiller",
+  "version": "0.1.0",
+  "description": "한국어 AI 문체 검사 + 다듬기. 결정적 규칙 엔진(74패턴 + 역방향 7)이 점수와 근거를 내고 안전한 수정을 적용한 뒤, 규칙으로 못 고치는 것만 LLM이 손본다. hwp·hwpx·docx·pdf 지원.",
+  "author": {
+    "name": "bokuyong"
+  },
+  "homepage": "https://github.com/bokuyong/aikiller",
+  "repository": "https://github.com/bokuyong/aikiller",
+  "license": "MIT",
+  "keywords": [
+    "korean",
+    "ai-detection",
+    "korean-nlp",
+    "translationese",
+    "hwp",
+    "AI탐지",
+    "번역투",
+    "다듬기"
+  ]
+}

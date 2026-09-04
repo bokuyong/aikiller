@@ -50,8 +50,9 @@ def _print_report(r: Report, show_sentences: bool) -> None:
     print(f"  {_c(BOLD, 'AI 문체 점수')}  {_c(color, f'{r.score:>5.1f}')} / 100   "
           f"{_c(color, _BAND_LABEL.get(r.band, r.band))}")
     print(f"  {_c(DIM, _bar(r.score))}")
-    print(f"  {_c(DIM, f'{r.n_chars}자 · {r.n_sentences}문장 · 장르 {r.genre} · '
-                       f'신뢰도 {_CONF_LABEL.get(r.confidence, r.confidence)}')}")
+    conf = _CONF_LABEL.get(r.confidence, r.confidence)
+    meta = f"{r.n_chars}자 · {r.n_sentences}문장 · 장르 {r.genre} · 신뢰도 {conf}"
+    print(f"  {_c(DIM, meta)}")
 
     if r.confidence == "insufficient":
         print()

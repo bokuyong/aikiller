@@ -23,6 +23,11 @@
 python3 -m unittest discover tests -v
 ```
 
+6. **Python 3.9 문법을 유지한다.** macOS 기본 python3 가 3.9 라서, 플러그인
+   설치자가 그걸 만난다. 여러 줄 중첩 f-string 같은 3.12+ 문법을 쓰면
+   설치자에게 SyntaxError 가 뜬다 — 실제로 한 번 그랬다.
+   `test_runs_on_stock_macos_python` 이 이걸 막는다.
+
 ## 구조
 
 ```
@@ -41,6 +46,8 @@ aikiller/
   metrics.py    쉼표 계열(L1)·리듬(L3) 정량 지표
   baselines.py  사람/AI 실측 극값. 장르별로 판별력 없는 셀은 None 으로 비운다 —
                 그 None 이 격식체 오탐을 막는 장치다. 함부로 채우지 마라.
+skills/aikiller/  Claude Code 스킬. SKILL.md 는 규칙 엔진을 먼저 돌리게 하고
+                  모델은 규칙이 못 고치는 것만 맡긴다 — 이 순서를 뒤집지 마라.
 scripts/
   corpus.py     코퍼스 구축 (import · wiki · generate · adversarial · stats)
   calibrate.py  융합 가중치 실측 피팅
@@ -89,6 +96,8 @@ Pattern(
 - `data/fusion_weights.json`을 손으로 쓰기 (`calibrate.py`만 쓴다)
 - 오탐 경고·면책 문구 삭제 (README, 랜딩 "못 하는 것" 절, 웹 UI 상단 배너, `notes` 배열)
 - 랜딩 페이지에 측정하지 않은 성능 수치 쓰기
+- 스킬(SKILL.md)에서 모델이 패턴을 눈대중으로 다시 세게 하기 — 엔진이 이미 했다
+- 버전을 한 곳만 올리기 (plugin.json · marketplace.json · SKILL.md 3곳이 일치해야 한다)
 - `history` 모듈을 켠 채로 남의 글을 받는 서비스로 배포하기
 - accuracy를 성능 지표로 보고하기 (`TPR @ FPR=1%`를 쓴다)
 

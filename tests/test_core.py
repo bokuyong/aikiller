@@ -354,6 +354,80 @@ class TestParsers(unittest.TestCase):
             parsers.parse_bytes(b"x", ".xyz")
 
 
+class TestSkillPackaging(unittest.TestCase):
+    """Claude Code 스킬·플러그인 매니페스트. 형식이 깨지면 설치가 조용히 실패한다."""
+
+    ROOT = os.path.join(os.path.dirname(__file__), "..")
+
+    def _read(self, *parts):
+        with open(os.path.join(self.ROOT, *parts), encoding="utf-8") as f:
+            return f.read()
+
+    def test_manifests_are_valid_json(self):
+        import json
+        plugin = json.loads(self._read(".claude-plugin", "plugin.json"))
+        market = json.loads(self._read(".claude-plugin", "marketplace.json"))
+        self.assertEqual(plugin["name"], "aikiller")
+        self.assertEqual(market["name"], "aikiller")
+        self.assertTrue(plugin["version"])
+        self.assertEqual(market["metadata"]["pluginRoot"], ".")
+
+    def test_runs_on_stock_macos_python(self):
+        """macOS 기본 python3 는 3.9 다. 플러그인 설치자가 그걸 만난다.
+
+        3.12+ 문법(여러 줄 중첩 f-string)을 쓰면 설치자에게 SyntaxError 가
+        뜬다. 실제로 한 번 그랬다.
+        """
+        import py_compile
+        import tempfile
+        import glob
+        for path in glob.glob(os.path.join(self.ROOT, "aikiller", "*.py")) + \
+                glob.glob(os.path.join(self.ROOT, "scripts", "*.py")):
+            with tempfile.NamedTemporaryFile(suffix=".pyc") as tmp:
+                try:
+                    py_compile.compile(path, cfile=tmp.name, doraise=True)
+                except py_compile.PyCompileError as e:
+                    self.fail(f"{os.path.basename(path)}: {e}")
+
+    def test_versions_agree(self):
+        import json
+        import re
+        plugin = json.loads(self._read(".claude-plugin", "plugin.json"))["version"]
+        market = json.loads(self._read(".claude-plugin", "marketplace.json"))
+        skill = re.search(r'^version:\s*"([^"]+)"',
+                          self._read("skills", "aikiller", "SKILL.md"), re.M)
+        self.assertIsNotNone(skill, "SKILL.md 에 version 이 없다")
+        self.assertEqual(plugin, skill.group(1))
+        self.assertEqual(plugin, market["metadata"]["version"])
+        self.assertEqual(plugin, market["plugins"][0]["version"])
+
+    def test_skill_frontmatter(self):
+        text = self._read("skills", "aikiller", "SKILL.md")
+        self.assertTrue(text.startswith("---\n"), "frontmatter 가 첫 줄이어야 한다")
+        head = text.split("---", 2)[1]
+        for key in ("name:", "description:"):
+            self.assertIn(key, head)
+        # description 은 트리거 문구를 담아야 스킬이 호출된다
+        self.assertIn("트리거", head)
+        self.assertGreater(len(head), 300, "description 이 너무 짧아 호출되지 않는다")
+
+    def test_runner_is_executable_and_finds_repo(self):
+        import subprocess
+        runner = os.path.join(self.ROOT, "skills", "aikiller", "run.sh")
+        self.assertTrue(os.access(runner, os.X_OK), "run.sh 에 실행 권한이 없다")
+        # PATH 에 aikiller 가 없는 상태에서도 저장소를 찾아야 한다
+        env = dict(os.environ, PATH="/usr/bin:/bin")
+        out = subprocess.run([runner, "--help"], capture_output=True, text=True,
+                             env=env, cwd="/", timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("humanize", out.stdout)
+
+    def test_command_references_skill(self):
+        cmd = self._read("commands", "aikiller.md")
+        self.assertIn("$ARGUMENTS", cmd)
+        self.assertIn("aikiller", cmd)
+
+
 class TestCorpusTools(unittest.TestCase):
     """scripts/corpus.py — 코퍼스 구축 도구."""
 

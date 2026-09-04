@@ -22,7 +22,9 @@
 
 ---
 
-## 설치 (개인용)
+## 설치
+
+### 명령줄 도구로
 
 ```bash
 ./install.sh
@@ -30,6 +32,22 @@
 
 `~/.local/bin/aikiller` 런처 하나만 만듭니다. 파이썬 패키지를 설치하지 않으므로
 저장소를 고치면 즉시 반영됩니다. 제거는 `./install.sh --uninstall`.
+
+Python 3.9 이상이면 됩니다 (macOS 기본 python3 포함).
+
+### Claude Code 스킬로
+
+```
+/plugin marketplace add bokuyong/aikiller
+/plugin install aikiller@aikiller
+```
+
+새 세션에서 `/aikiller` 또는 자연어로 "이 글 AI 티 검사해줘".
+
+대화 중에 검사·다듬기를 시킬 수 있습니다. 스킬은 **규칙 엔진을 먼저 돌리고**
+(결정적·재현 가능) 규칙이 못 고치는 것만 모델이 손봅니다 — 무생물 주어,
+문단 리듬, 문두 접속사 같은 것들입니다. 절차는 [SKILL.md](skills/aikiller/SKILL.md)에
+있습니다.
 
 ## 빠른 시작
 
@@ -353,6 +371,13 @@ aikiller/
   cli.py        CLI (detect · humanize · prompt · serve · clip · history)
   web.py        웹 서버 + 도구 화면 + JSON API (stdlib http.server)
   landing.py    랜딩 페이지 HTML
+skills/aikiller/
+  SKILL.md      Claude Code 스킬 — 4단계 절차 (검사 → 규칙 → LLM 보정 → 재검증)
+  run.sh        설치 방식과 무관하게 CLI 를 찾아 실행
+commands/
+  aikiller.md   /aikiller 슬래시 명령
+.claude-plugin/
+  plugin.json · marketplace.json
 scripts/
   corpus.py     코퍼스 구축 (import · wiki · generate · adversarial · stats)
   calibrate.py  융합 가중치 실측 피팅 + L3 기준선 재측정
