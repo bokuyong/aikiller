@@ -5,7 +5,7 @@ venv/
 
 # 캘리브레이션 산출물 — 코퍼스마다 달라지므로 커밋하지 않는다
 data/fusion_weights.json
-data/baseline_v2.calibrated.json
+data/l3_baseline.json
 
 # 코퍼스 본체는 라이선스가 제각각이라 커밋하지 않는다
 data/corpus/**/*.txt

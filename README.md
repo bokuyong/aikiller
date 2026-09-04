@@ -90,7 +90,7 @@ cat 자소서.hwpx | aikiller detect - --genre essay
 
 | 계층 | 내용 | 캘리브레이션 |
 |---|---|---|
-| **L1** 통계 지표 | 쉼표 계열 4종 (포함률·밀도·연결어미 뒤·구간 길이) | ✅ **실측** — KatFish(인간 470편 vs LLM 1,624편) |
+| **L1** 통계 지표 | 쉼표 계열 4종 (포함률·밀도·연결어미 뒤·구간 길이) | ✅ **실측 기준선** — 아래 참조 |
 | **L2** 패턴 밀도 | 74개 AI 티 패턴을 1,000자당 가중 밀도로 환산 | ⚠️ 가중치 추정 |
 | **L3** 리듬 | 문장 길이 변동계수, 종결어미 다양성, 장문 부재 | ⚠️ 휴리스틱 임계값 |
 | **L4** 사람 증거 | 자기 개입·시점 앵커·구어체 등 7종 (**점수를 깎음**) | ⚠️ 가중치 추정 |
@@ -136,7 +136,12 @@ cat 자소서.hwpx | aikiller detect - --genre essay
 솔직하게 적습니다. 이 항목이 이 프로젝트의 신뢰도 그 자체입니다.
 
 **믿을 수 있음**
-- L1 계층은 실측 기준선을 씁니다.
+- L1 계층은 실측 기준선을 씁니다. 사람/AI 극값의 출처는 [baselines.py](aikiller/baselines.py)에
+  적어 뒀습니다 — 한국어 AI 텍스트 판별 연구 KatFish(Park et al., 사람 470편 vs
+  LLM 1,624편)의 보고 수치입니다.
+- **장르에 따라 지표가 뒤집히면 그 지표를 아예 뺍니다.** 예를 들어 보고서체에서는
+  쉼표 포함률의 사람 내 분산(±18.3)이 사람·AI 극간 거리(5.4)보다 커서 판별이
+  성립하지 않습니다. 그런 셀은 `None`으로 비워 두고 계산에서 제외합니다.
 - 규칙 다듬기는 결정적이고 문법적입니다. 사실·수치·인용을 만들거나 지우지 않습니다.
 - 150자 미만은 점수를 내지 않고 `판정 불가`를 반환합니다.
 
@@ -343,10 +348,11 @@ aikiller/
   humanize.py   규칙 다듬기 + LLM 프롬프트 빌더
   hangul.py     종성 판별 · 조사 자동 선택
   parsers.py    hwp/hwpx/docx/pdf/txt
+  metrics.py    쉼표 계열(L1) · 리듬(L3) 정량 지표
+  baselines.py  사람/AI 실측 극값 + 장르별 판별력 표
   cli.py        CLI (detect · humanize · prompt · serve · clip · history)
   web.py        웹 서버 + 도구 화면 + JSON API (stdlib http.server)
   landing.py    랜딩 페이지 HTML
-  vendor/humanize_kr/   im-not-ai 정량 지표 (MIT, 원본 그대로)
 scripts/
   corpus.py     코퍼스 구축 (import · wiki · generate · adversarial · stats)
   calibrate.py  융합 가중치 실측 피팅 + L3 기준선 재측정
@@ -388,10 +394,3 @@ Pattern(
 
 `tests/test_core.py`에 회귀 테스트를 같이 넣으세요.
 
----
-
-## 라이선스 / 출처
-
-`aikiller/vendor/humanize_kr/`는 [im-not-ai](https://github.com/epoko77-ai/im-not-ai)
-(Humanize KR v2.3.2, MIT © 2026 epoko77-ai)에서 가져왔습니다.
-자세한 내용은 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

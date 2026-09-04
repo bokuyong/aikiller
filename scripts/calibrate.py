@@ -14,8 +14,8 @@
 
 산출
 ----
-    data/fusion_weights.json          L1/L2/L3 로지스틱 가중치 (_fitted: true)
-    data/baseline_v2.calibrated.json  L3 지표의 사람 코퍼스 실측 평균·표준편차
+    data/fusion_weights.json          L1~L4 로지스틱 가중치 (_fitted: true)
+    data/l3_baseline.json             L3 지표의 사람 코퍼스 실측 평균·표준편차
 
 사용:
     python3 scripts/calibrate.py
@@ -35,20 +35,17 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from aikiller import detect as D  # noqa: E402
+from aikiller import metrics as M  # noqa: E402
 from aikiller import patterns as P  # noqa: E402
-from aikiller.vendor import humanize_kr as hk  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 CORPUS = os.path.join(ROOT, "data", "corpus")
 OUT_WEIGHTS = os.path.join(ROOT, "data", "fusion_weights.json")
-OUT_BASELINE = os.path.join(ROOT, "data", "baseline_v2.calibrated.json")
+OUT_BASELINE = os.path.join(ROOT, "data", "l3_baseline.json")
 
-# L3 재측정 대상 — baseline_v2.json이 placeholder로 두고 있는 지표들
-L3_METRICS = (
-    "lexical_diversity_ttr", "lexical_density", "ending_diversity",
-    "normalisation_score", "inanimate_subject_rate", "pronoun_density",
-    "deul_overuse_rate", "progressive_aspect_rate",
-)
+# L3 재측정 대상 — detect.py 가 지금 휴리스틱 임계값으로 쓰고 있는 것들.
+# 사람 코퍼스로 실측하면 그 임계값을 z 기반으로 바꿀 수 있다.
+L3_METRICS = ("ending_diversity", "declarative_ratio")
 
 MIN_DOCS_PER_CLASS = 20
 MIN_CHARS = D.MIN_CHARS_SCORE
@@ -76,13 +73,19 @@ def load_corpus(label: str) -> list[tuple[str, str]]:
 
 
 def features(text: str, genre: str) -> list[float]:
-    """detect.py와 **동일한** 계층 계산. 여기서 갈라지면 피팅이 무의미해진다."""
-    base = hk.compute_all_v2(text, genre=genre)
+    """detect.py와 **동일한** 계층 계산. 여기서 갈라지면 피팅이 무의미해진다.
+
+    analyze() 가 맨 앞에서 하는 개행 정규화를 여기서도 해야 CRLF 입력에서
+    값이 갈리지 않는다.
+    """
+    text = text.replace("\r\n", "\n")
+    raw = M.compute(text)
     hits = P.find_hits(text)
-    l1, _ = D._layer1(base)
+    l1, _ = D._layer1(raw, genre)
     l2, _, _ = D._layer2(text, hits)
-    l3, _ = D._layer3(text, base.get("v2_metrics", {}) or {})
-    return [l1, l2, l3]
+    l3, _ = D._layer3(text, raw)
+    l4, _ = D._layer_human(text)
+    return [l1, l2, l3, l4]
 
 
 def fit_logistic(X, y, epochs: int, lr: float, l2_reg: float = 1e-3):
@@ -116,11 +119,11 @@ def recalibrate_l3(human_docs) -> dict:
     """사람 코퍼스로 L3 지표의 평균·표준편차를 실측한다."""
     by_genre: dict = {}
     for text, genre in human_docs:
-        v2 = hk.compute_all_v2(text, genre=genre).get("v2_metrics", {}) or {}
+        raw = M.compute(text)
         bucket = by_genre.setdefault(genre, {})
         for k in L3_METRICS:
-            if k in v2:
-                bucket.setdefault(k, []).append(float(v2[k]))
+            if k in raw:
+                bucket.setdefault(k, []).append(float(raw[k]))
 
     genres = {}
     for genre, metrics in by_genre.items():
@@ -139,7 +142,7 @@ def recalibrate_l3(human_docs) -> dict:
     return {
         "version": "calibrated",
         "source": f"data/corpus/human ({len(human_docs)} docs)",
-        "note": "사람 코퍼스 실측. baseline_v2.json의 placeholder 셀을 대체한다.",
+        "note": "사람 코퍼스 실측. detect.py 의 L3 휴리스틱 임계값을 대체할 재료다.",
         "genres": genres,
     }
 
@@ -176,7 +179,7 @@ def main(argv=None) -> int:
     for text, genre in ai:
         X.append(features(text, genre))
         y.append(1)
-    for name, idx in (("L1", 0), ("L2", 1), ("L3", 2)):
+    for name, idx in (("L1", 0), ("L2", 1), ("L3", 2), ("L4", 3)):
         h = [x[idx] for x, t in zip(X, y) if t == 0]
         a = [x[idx] for x, t in zip(X, y) if t == 1]
         gap = abs(statistics.fmean(a) - statistics.fmean(h))
@@ -190,6 +193,7 @@ def main(argv=None) -> int:
         "l1_calibrated_z": round(w[0], 4),
         "l2_pattern_density": round(w[1], 4),
         "l3_rhythm": round(w[2], 4),
+        "l4_human_evidence": round(w[3], 4),
         "bias": round(b, 4),
         "_fitted": True,
         "_n_human": len(human),

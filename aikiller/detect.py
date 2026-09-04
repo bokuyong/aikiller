@@ -26,8 +26,8 @@ import statistics
 from dataclasses import dataclass, field, asdict
 from typing import Any
 
+from . import baselines, metrics
 from . import patterns as P
-from .vendor import humanize_kr as hk
 
 VERSION = "0.1.0"
 
@@ -35,24 +35,13 @@ VERSION = "0.1.0"
 MIN_CHARS_SCORE = 150
 MIN_CHARS_CONFIDENT = 400
 
-# L1에 쓸 v1 지표. baseline.json에 human/ai **실측** 평균이 있는 것만 남긴다.
-# 부호는 _z가 "양수 = AI 쪽"으로 맞춰 준다 — 단 그건 ai > human 인 지표에서만
-# 성립한다.
+# L1에 쓰는 지표. baselines.py 에 사람/AI 실측 극값이 있는 것만이다.
 #
-# 제외한 것 (검수에서 드러난 결함):
-#   lexical_diversity        극값이 0.65/0.55로 하드코딩돼 있는데 실제 한국어
-#                            산문의 어절 TTR은 0.79~0.94다. 사람·AI 가릴 것 없이
-#                            z가 +5를 넘어 클립 천장(+3)에 붙는 상수였다. 게다가
-#                            ai(0.55) < human(0.65)이라 부호까지 반대여서, 사람
-#                            글 점수를 통째로 끌어올리고 있었다.
-#   hanja_nominalizer_density 극값이 6%/12%로 하드코딩("rough proxy" 주석)인데
-#                            실측은 0.5~2.1%다. 항상 [-2.0, -1.3]에 머무는 상수.
-CALIBRATED_METRICS = (
-    "comma_inclusion_rate",
-    "comma_usage_rate",
-    "ending_comma_rate",
-    "comma_segment_length",
-)
+# 예전에 어휘 다양성(TTR)과 한자 명사화 밀도도 넣었다가 뺐다. 극값이
+# 하드코딩돼 있어서 실제 한국어 산문에서는 사람·AI 가릴 것 없이 클립 천장에
+# 붙는 상수였고, TTR은 사람 극이 AI 극보다 높아 부호까지 반대였다. 그 둘이
+# 사람 글 점수를 통째로 끌어올리고 있었다.
+CALIBRATED_METRICS = metrics.L1_METRICS
 
 # 융합 가중치 — 미피팅 추정값. calibrate.py가 덮어쓴다.
 WEIGHTS = {
@@ -152,23 +141,29 @@ class Report:
 # 계층별 점수
 # ---------------------------------------------------------------------------
 
-def _layer1(base: dict[str, Any]) -> tuple[float, list[Signal]]:
-    """캘리브레이션된 v1 지표의 평균 z. 양수일수록 AI 쪽."""
-    zs = base.get("z_scores", {}) or {}
-    metrics = base.get("metrics", {}) or {}
+def _layer1(raw: dict[str, Any], genre: str) -> tuple[float, list[Signal]]:
+    """실측 기준선 대비 z 의 평균. 양수일수록 AI 쪽.
+
+    장르에 따라 판별력이 없거나 방향이 뒤집히는 지표는 baselines.py 가
+    None 으로 비워 두었고, 그런 셀은 여기서 통째로 건너뛴다.
+    """
+    ref = baselines.cells(genre)
     vals: list[float] = []
     signals: list[Signal] = []
     for key in CALIBRATED_METRICS:
-        z = zs.get(key)
-        if z is None:
+        poles = ref.get(key)
+        if poles is None or key not in raw:
             continue
-        zc = _clip(float(z), -3.0, 3.0)
+        human, ai = poles
+        z = baselines.z_score(float(raw[key]), human, ai,
+                              percent=key in metrics.PERCENT_METRICS)
+        zc = _clip(z, -3.0, 3.0)
         vals.append(zc)
         if abs(zc) >= 0.8:
             direction = "AI 쪽" if zc > 0 else "사람 쪽"
             signals.append(Signal(
                 layer="L1", key=key, label=_LABELS.get(key, key),
-                value=round(float(metrics.get(key, 0.0)), 4),
+                value=round(float(raw.get(key, 0.0)), 4),
                 detail=f"z={zc:+.2f} ({direction})",
                 strength=_clip(abs(zc) / 3.0, 0.0, 1.0),
                 calibrated=True,
@@ -217,10 +212,9 @@ def _layer2(text: str, hits: list[P.Hit]) -> tuple[float, list[Signal], dict[str
     return min(raw / 20.0, 6.0), signals, per_id
 
 
-def _layer3(text: str, v2: dict[str, Any]) -> tuple[float, list[Signal]]:
-    """리듬 균일성. baseline_v2가 placeholder라 휴리스틱 임계값을 쓴다."""
-    sents = hk.split_sentences(text)
-    lengths = [len(s) for s in sents if s.strip()]
+def _layer3(text: str, m: dict[str, Any]) -> tuple[float, list[Signal]]:
+    """리듬 균일성. 실측 기준선이 없어 휴리스틱 임계값을 쓴다."""
+    lengths = m.get("sentence_lengths") or metrics.sentence_lengths(text)
     signals: list[Signal] = []
     score = 0.0
 
@@ -240,7 +234,7 @@ def _layer3(text: str, v2: dict[str, Any]) -> tuple[float, list[Signal]]:
                 strength=s, calibrated=False,
             ))
 
-    ed = v2.get("ending_diversity")
+    ed = m.get("ending_diversity")
     if ed is not None and len(lengths) >= 4:
         if ed < 0.45:
             s = _clip((0.45 - ed) / 0.30, 0.0, 1.0)
@@ -267,7 +261,7 @@ def _layer3(text: str, v2: dict[str, Any]) -> tuple[float, list[Signal]]:
                 strength=s, calibrated=False,
             ))
 
-    ns = v2.get("normalisation_score")
+    ns = m.get("declarative_ratio")
     if ns is not None and len(lengths) >= 4 and ns > 0.75:
         s = _clip((ns - 0.75) / 0.25, 0.0, 1.0)
         score += s
@@ -309,7 +303,7 @@ def _layer_human(text: str) -> tuple[float, list[Signal]]:
 
 def _score_sentences(text: str, hits: list[P.Hit]) -> list[SentenceScore]:
     """문장 단위 점수 — 히트를 문장 경계에 매핑해 하이라이트 근거를 만든다."""
-    sents = hk.split_sentences(text)
+    sents = metrics.split_sentences(text)
     out: list[SentenceScore] = []
     cursor = 0
     for i, s in enumerate(sents):
@@ -341,8 +335,6 @@ _LABELS = {
     "comma_usage_rate": "쉼표 사용 밀도",
     "ending_comma_rate": "연결어미 뒤 쉼표 비율",
     "comma_segment_length": "쉼표 구간 평균 길이",
-    "hanja_nominalizer_density": "-적/-성/-화 명사화 밀도",
-    "lexical_diversity": "어휘 다양성(TTR)",
 }
 
 
@@ -357,13 +349,12 @@ def analyze(text: str, genre: str = "essay") -> Report:
     weights = _load_weights()
     notes: list[str] = []
 
-    base = hk.compute_all_v2(text, genre=genre)
-    v2 = base.get("v2_metrics", {}) or {}
+    raw = metrics.compute(text)
     hits = P.find_hits(text)
 
-    l1, sig1 = _layer1(base)
+    l1, sig1 = _layer1(raw, genre)
     l2, sig2, per_id = _layer2(text, hits)
-    l3, sig3 = _layer3(text, v2)
+    l3, sig3 = _layer3(text, raw)
     l4, sig4 = _layer_human(text)
 
     logit = (
@@ -398,10 +389,11 @@ def analyze(text: str, genre: str = "essay") -> Report:
             "융합 가중치가 아직 실측 피팅되지 않았습니다. "
             "scripts/calibrate.py 실행 전에는 점수를 상대 비교용으로만 쓰세요."
         )
-    if base.get("v2_baseline_warnings"):
+    skipped = [k for k in CALIBRATED_METRICS if baselines.cells(genre).get(k) is None]
+    if skipped:
         notes.append(
-            f"L3 리듬 지표 {len(base['v2_baseline_warnings'])}개가 placeholder 기준선을 "
-            "쓰고 있습니다(휴리스틱 임계값으로 대체 적용)."
+            f"'{genre}' 장르에서는 {len(skipped)}개 지표가 판별력이 없거나 방향이 "
+            "뒤집혀 계산에서 제외했습니다."
         )
 
     sentences = _score_sentences(text, hits)
@@ -426,11 +418,8 @@ def analyze(text: str, genre: str = "essay") -> Report:
             "logit": round(logit, 3),
         },
         metrics={
-            "v1": base.get("metrics", {}),
-            "v1_z": base.get("z_scores", {}),
-            "v2": v2,
-            "interference_weighted_total": base.get(
-                "v2_interference_index", {}).get("weighted_total"),
+            "raw": {k: v for k, v in raw.items() if k != "sentence_lengths"},
+            "baseline_source": baselines.SOURCE,
             "pattern_counts": per_id,
         },
         notes=notes,

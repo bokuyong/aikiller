@@ -443,8 +443,10 @@ aikiller history</pre>
   <b>ai킬러</b> — 한국어 AI 문체 탐지 + 다듬기<br>
   hwp · hwpx · docx · pdf · txt 지원 · 글이 서버에 저장되지 않습니다 ·
   분석 기록은 내 컴퓨터의 <code>~/.aikiller/</code> 에만 남습니다<br><br>
-  정량 지표는 <a href="https://github.com/epoko77-ai/im-not-ai">im-not-ai</a>
-  (Humanize KR, MIT)에서 가져왔습니다.
+  L1 계층의 사람/AI 실측 극값은 한국어 AI 텍스트 판별 연구
+  <b>KatFish</b>(Park et al., 사람 470편 vs LLM 1,624편)의 보고 수치입니다.
+  패턴 분류 체계는 <a href="https://github.com/epoko77-ai/im-not-ai">Humanize KR</a>의
+  한국어 AI 티 taxonomy를 참고했습니다. MIT 라이선스.
 </div></footer>
 
 </body></html>

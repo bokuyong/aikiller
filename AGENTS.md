@@ -38,7 +38,9 @@ aikiller/
   landing.py    랜딩 페이지(/) HTML — 여기 적힌 숫자는 전부 실측값이다.
                 바꿀 때는 실제로 다시 재고 바꿔라. 마케팅 문구 금지.
   history.py    로컬 분석 기록 (SQLite, ~/.aikiller/)
-  vendor/humanize_kr/   im-not-ai (MIT) 정량 지표. ★ 수정 금지 — 원본 그대로 유지
+  metrics.py    쉼표 계열(L1)·리듬(L3) 정량 지표
+  baselines.py  사람/AI 실측 극값. 장르별로 판별력 없는 셀은 None 으로 비운다 —
+                그 None 이 격식체 오탐을 막는 장치다. 함부로 채우지 마라.
 scripts/
   corpus.py     코퍼스 구축 (import · wiki · generate · adversarial · stats)
   calibrate.py  융합 가중치 실측 피팅
@@ -83,9 +85,8 @@ Pattern(
 
 ## 하지 말아야 할 것
 
-- `aikiller/vendor/` 수정 (MIT 원본 유지가 라이선스 고지의 전제다)
+- `baselines.py` 의 `None` 셀을 근거 없이 채우기 (그 장르에서 지표가 뒤집힌다는 실측 결과다)
 - `data/fusion_weights.json`을 손으로 쓰기 (`calibrate.py`만 쓴다)
-- `baseline_v2.json`의 `_placeholder: true` 플래그 제거 (실측 전까지 유지)
 - 오탐 경고·면책 문구 삭제 (README, 랜딩 "못 하는 것" 절, 웹 UI 상단 배너, `notes` 배열)
 - 랜딩 페이지에 측정하지 않은 성능 수치 쓰기
 - `history` 모듈을 켠 채로 남의 글을 받는 서비스로 배포하기
@@ -96,13 +97,11 @@ Pattern(
 `README.md`의 "지금 상태에서 믿을 수 있는 것 / 없는 것" 절이 최신이다. 요약:
 
 - 융합 가중치 미피팅. 등급 경계(25/60)도 표본 9건에 맞춘 잠정값
-- `baseline_v2.json` 전 셀 placeholder → L3는 휴리스틱 임계값
+- L3 임계값은 휴리스틱이다. `calibrate.py` 가 사람 코퍼스로 재측정한다
 - 다듬은 뒤 L3 리듬이 오히려 악화 (규칙 다듬기의 구조적 한계)
 - `evidence` 필드가 없는 패턴 다수 — 가중치가 추정치다
 - `scripts/eval.py`가 in-sample이다. 가중치·임계값·평가를 같은 데이터로 하고
   홀드아웃 분할이 없다. 코퍼스가 생기면 이걸 먼저 고쳐야 한다.
-- `scripts/calibrate.py::features()`가 `\r\n` 정규화를 안 해 CRLF 입력에서
-  `analyze()`와 미세하게 갈린다.
 
 ## 검수 이력
 
